@@ -10,15 +10,16 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchVehicles, deleteVehicle, addVehicle, fetchAccessLogs } from '@/api/vehicleAPI';
 import { Vehicle, AccessLog } from '@/types/Vehicle';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import moment from 'moment';
-import { Image } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
 import { useNavigation } from '@react-navigation/native';
+
 const Dashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [activeMode, setActiveMode] = useState<'7days' | 'month' | 'year'>('month');
@@ -33,26 +34,28 @@ const Dashboard = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(moment().format('MM'));
   const [selectedYear, setSelectedYear] = useState(moment().format('YYYY'));
+  const [countdown, setCountdown] = useState(5);
+  const [activeTab, setActiveTab] = useState<'vehicles' | 'history' | 'stats'>('vehicles');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const navigation = useNavigation();
 
   const checkAuth = async () => {
     const token = await AsyncStorage.getItem('auth');
     setIsAuthenticated(!!token);
   };
-  
-  
-  const [countdown, setCountdown] = useState(5); // ⏱️ inițial 10 secunde
 
   useEffect(() => {
     if (isAuthenticated === false) {
-      setCountdown(5); // resetăm timerul
+      setCountdown(5);
       const interval = setInterval(() => {
         setCountdown((prev) => prev - 1);
       }, 1000);
-  
+
       const timeout = setTimeout(() => {
         (navigation as any).navigate('index');
       }, 5000);
-  
+
       return () => {
         clearInterval(interval);
         clearTimeout(timeout);
@@ -60,7 +63,6 @@ const Dashboard = () => {
     }
   }, [isAuthenticated]);
 
-  const navigation = useNavigation();
   const handleLogout = async () => {
     await AsyncStorage.removeItem('auth');
     setIsAuthenticated(false);
@@ -69,7 +71,7 @@ const Dashboard = () => {
         index: 0,
         routes: [{ name: 'index' }],
       });
-    }, 100); 
+    }, 100);
   };
 
   const loadVehicles = async () => {
@@ -121,7 +123,6 @@ const Dashboard = () => {
 
   useEffect(() => {
     checkAuth();
-
   }, []);
 
   useEffect(() => {
@@ -165,7 +166,11 @@ const Dashboard = () => {
 
   const filteredHistory = history.filter((h) =>
     h.licensePlate.toLowerCase().includes(historySearch.toLowerCase()) &&
-    (selectedDate === '' || moment(h.accessTime).format('YYYY-MM-DD') === selectedDate)
+    (
+      (fromDate === '' || moment(h.accessTime).isSameOrAfter(moment(fromDate, 'YYYY-MM-DD'), 'day')) &&
+      (toDate === '' || moment(h.accessTime).isSameOrBefore(moment(toDate, 'YYYY-MM-DD'), 'day'))
+    
+    )
   );
 
   const totalEntries = chartData.values.reduce((acc, val) => acc + val, 0);
@@ -188,8 +193,7 @@ const Dashboard = () => {
       </View>
     );
   }
-  
-  
+
   return (
     <>
       <Modal
@@ -216,19 +220,33 @@ const Dashboard = () => {
           </View>
         </View>
       </Modal>
-  
+
       <ScrollView style={styles.container2}>
-      <View style={styles.logoWrapper}>
-            <Image
-              source={require('../../assets/images/favicon.png')}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
-            <Text style={styles.logoText}>AI-ParkControl</Text>
-          </View>
-  
-        {/* Mașini înregistrate */}
-        <View style={styles.section}>
+        <View style={styles.logoWrapper}>
+          <Image
+            source={require('../../assets/images/favicon.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.logoText}>AI-ParkControl</Text>
+        </View>
+
+        {/* 🔻 Icon Menu Tabs */}
+        <View style={styles.iconBar}>
+          <TouchableOpacity onPress={() => setActiveTab('vehicles')} style={activeTab === 'vehicles' && styles.activeTab}>
+            <Text style={styles.icon}>🚘</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setActiveTab('history')} style={activeTab === 'history' && styles.activeTab}>
+            <Text style={styles.icon}>📥</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setActiveTab('stats')} style={activeTab === 'stats' && styles.activeTab}>
+            <Text style={styles.icon}>📈</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 🔻 Tabs */}
+        {activeTab === 'vehicles' && (
+          <View style={styles.section}>
           <Text style={styles.sectionTitle}>🚘 Mașini înregistrate în baza de date</Text>
           <View style={[styles.buttonRow, { justifyContent: 'space-between' }]}>
             <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -243,86 +261,102 @@ const Dashboard = () => {
               <Text style={styles.logoutButtonText}>🚪 Logout</Text>
             </TouchableOpacity>
           </View>
-  
+        
           <TextInput
             style={styles.searchBar}
             placeholder="Caută număr înmatriculare..."
             value={vehicleSearch}
             onChangeText={setVehicleSearch}
           />
-  
+        
           {filteredVehicles.map((item) => (
-          <View key={item.id} style={styles.item}>
-            <View style={styles.itemInfo}>
-              <Image
-                source={require('../../assets/images/favicon.png')}
-                style={styles.logoSmall}
-                resizeMode="contain"
-              />
-              <View>
-                <Text style={styles.boldText}>{item.licensePlate}</Text>
-                {item.entryTime && (
-                  <Text style={styles.historySubText}>
-                    Înregistrat la: {new Date(item.entryTime).toLocaleString('ro-RO')}
-                  </Text>
-                )}
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => handleDeleteVehicle(item.id)}
-            >
-              <Text style={styles.deleteIcon}>🗑️</Text>
-            </TouchableOpacity>
-          </View>
-))}
-
-        </View>
-  
-        {/* Istoric acces */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📥 Istoric acces - mașini care au intrat în parcare</Text>
-          <TextInput
-            style={styles.searchBar}
-            placeholder="Caută în istoric..."
-            value={historySearch}
-            onChangeText={setHistorySearch}
-          />
-  
-          {showDatePicker && (
-            <DateTimePicker
-              mode="date"
-              display="default"
-              value={moment(selectedDate, 'YYYY-MM-DD', true).isValid() ? new Date(selectedDate) : new Date()}
-              onChange={(event, date) => {
-                setShowDatePicker(false);
-                if (date) setSelectedDate(moment(date).format('YYYY-MM-DD'));
-              }}
-            />
-          )}
-  
-                {filteredHistory.map((item) => (
-                <View key={item.id} style={styles.historyItem}>
-                  <View style={styles.itemInfo}>
-                    <Image
-                      source={require('../../assets/images/favicon.png')}
-                      style={styles.logoSmall}
-                      resizeMode="contain"
-                    />
-                    <View>
-                      <Text style={styles.historyText}>{item.licensePlate}</Text>
-                      <Text style={styles.historySubText}>
-                        Ora acces: {new Date(item.accessTime).toLocaleString('ro-RO')}
-                      </Text>
-                    </View>
-                  </View>
+            <View key={item.id} style={styles.item}>
+              <View style={styles.itemInfo}>
+                <Image
+                  source={require('../../assets/images/favicon.png')}
+                  style={styles.logoSmall}
+                  resizeMode="contain"
+                />
+                <View>
+                  <Text style={styles.boldText}>{item.licensePlate}</Text>
+                  {item.entryTime && (
+                    <Text style={styles.historySubText}>
+                      Înregistrat la: {new Date(item.entryTime).toLocaleString('ro-RO')}
+                    </Text>
+                  )}
                 </View>
-              ))}
+              </View>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteVehicle(item.id)}
+              >
+                <Text style={styles.deleteIcon}>🗑️</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
         </View>
-  
-        {/* Grafic și control statistici */}
-        <View style={styles.section}>
+        
+        )}
+
+        {activeTab === 'history' && (
+         <View style={styles.section}>
+         <Text style={styles.sectionTitle}>📥 Istoric acces - mașini care au intrat în parcare</Text>
+       
+         <TextInput
+           style={styles.searchBar}
+           placeholder="Caută în istoric..."
+           value={historySearch}
+           onChangeText={setHistorySearch}
+         />
+       
+
+<Text style={styles.sectionTitle}>📅 Filtrare după interval</Text>
+
+<TextInput
+  style={styles.searchBar}
+  placeholder="De la (AN-LUNA-ZI)"
+  value={fromDate}
+  onChangeText={setFromDate}
+/>
+
+<TextInput
+  style={styles.searchBar}
+  placeholder="Pana la (AN-LUNA-ZI)"
+  value={toDate}
+  onChangeText={setToDate}
+/>
+
+{(fromDate !== '' || toDate !== '') && (
+  <TouchableOpacity onPress={() => { setFromDate(''); setToDate(''); }} style={styles.refreshButton}>
+    <Text style={styles.refreshButtonText}>🔄 Reset interval</Text>
+  </TouchableOpacity>
+)}
+         {filteredHistory.map((item) => (
+           <View key={item.id} style={styles.historyItem}>
+             <View style={styles.itemInfo}>
+               <Image
+                 source={require('../../assets/images/favicon.png')}
+                 style={styles.logoSmall}
+                 resizeMode="contain"
+               />
+               <View>
+                 <Text style={styles.historyText}>{item.licensePlate}</Text>
+                 <Text style={styles.historySubText}>
+                   Ora acces: {new Date(item.accessTime).toLocaleString('ro-RO')}
+                 </Text>
+               </View>
+             </View>
+           </View>
+         ))}
+       </View>
+       
+       
+        )}
+
+        {activeTab === 'stats' && (
+          <View style={styles.section}>
           <Text style={styles.sectionTitle}>📈 Statistici intrări</Text>
+        
           <View style={styles.buttonRow}>
             <TouchableOpacity onPress={() => { setActiveMode('7days'); groupChartData(history, '7days'); }} style={[styles.addButton, activeMode === '7days' && styles.activeButton]}>
               <Text style={styles.addButtonText}>Ultimele 7 zile</Text>
@@ -334,7 +368,7 @@ const Dashboard = () => {
               <Text style={styles.refreshButtonText}>Pe an</Text>
             </TouchableOpacity>
           </View>
-  
+        
           {activeMode === 'month' && (
             <View style={styles.buttonRow}>
               <TextInput
@@ -355,6 +389,7 @@ const Dashboard = () => {
               />
             </View>
           )}
+        
           {activeMode === 'year' && (
             <View style={styles.buttonRow}>
               <TextInput
@@ -367,24 +402,22 @@ const Dashboard = () => {
               />
             </View>
           )}
-  
+        
           <Text style={{ marginBottom: 10 }}>📊 Total intrări: <Text style={{ fontWeight: 'bold' }}>{totalEntries}</Text></Text>
-  
+        
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <BarChart
               withCustomBarColorFromData={true}
               data={{
                 labels: chartData.labels,
-                datasets: [
-                  {
-                    data: chartData.values,
-                    colors: chartData.labels.map((label) =>
-                      label.includes('🔴')
-                        ? (opacity = 1) => `rgba(255, 99, 132, ${opacity})`
-                        : (opacity = 1) => `rgba(76, 175, 80, ${opacity})`
-                    )
-                  }
-                ],
+                datasets: [{
+                  data: chartData.values,
+                  colors: chartData.labels.map(label =>
+                    label.includes('🔴')
+                      ? (opacity = 1) => `rgba(255, 99, 132, ${opacity})`
+                      : (opacity = 1) => `rgba(76, 175, 80, ${opacity})`
+                  )
+                }],
               }}
               width={Math.max(Dimensions.get('window').width, chartData.labels.length * 60)}
               height={220}
@@ -401,14 +434,17 @@ const Dashboard = () => {
               }}
               style={{ borderRadius: 16 }}
             />
-            <Text style={{ fontSize: 12, marginTop: 8, color: '#666', textAlign: 'center' }}>
-              🔴 = Ziua/Luna curentă evidențiată
-            </Text>
           </ScrollView>
+        
+          <Text style={{ fontSize: 12, marginTop: 8, color: '#666', textAlign: 'center' }}>
+            🔴 = Ziua/Luna curentă evidențiată
+          </Text>
         </View>
+        
+        )}
       </ScrollView>
     </>
-  );  
+  );
 };
 
 const styles = StyleSheet.create({
@@ -420,6 +456,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     color: '#333',
     marginBottom: 12,
+  },
+  iconBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+    paddingVertical: 12,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 12,
+  },
+  icon: {
+    fontSize: 28,
+    color: '#333',
+  },
+  activeTab: {
+    borderBottomWidth: 2,
+    borderColor: '#22c55e',
+    paddingBottom: 4,
   },
   container: {
     padding: 20,
