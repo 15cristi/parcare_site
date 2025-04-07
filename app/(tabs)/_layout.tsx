@@ -5,7 +5,7 @@ import { Platform } from 'react-native';
 export default function Layout() {
   useEffect(() => {
     if (Platform.OS === 'web') {
-      document.title = 'Administrare Parcare';
+      document.title = 'AI-ParkControl';
     }
   }, []);
   return (

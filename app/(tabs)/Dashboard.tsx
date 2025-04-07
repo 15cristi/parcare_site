@@ -16,6 +16,7 @@ import { fetchVehicles, deleteVehicle, addVehicle, fetchAccessLogs } from '@/api
 import { Vehicle, AccessLog } from '@/types/Vehicle';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import moment from 'moment';
+import { Image } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
 import { useNavigation } from '@react-navigation/native';
 const Dashboard = () => {
@@ -66,7 +67,7 @@ const Dashboard = () => {
     setTimeout(() => {
       (navigation as any).reset({
         index: 0,
-        routes: [{ name: 'index' }], // Schimbă cu numele rutei tale de login
+        routes: [{ name: 'index' }],
       });
     }, 100); 
   };
@@ -216,8 +217,15 @@ const Dashboard = () => {
         </View>
       </Modal>
   
-      <ScrollView style={styles.container}>
-        <Text style={styles.title}>📊 Parcare Privată</Text>
+      <ScrollView style={styles.container2}>
+      <View style={styles.logoWrapper}>
+            <Image
+              source={require('../../assets/images/favicon.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+            <Text style={styles.logoText}>AI-ParkControl</Text>
+          </View>
   
         {/* Mașini înregistrate */}
         <View style={styles.section}>
@@ -244,26 +252,31 @@ const Dashboard = () => {
           />
   
           {filteredVehicles.map((item) => (
-            <View key={item.id} style={styles.item}>
-              <View style={styles.itemInfo}>
-                <Text style={styles.emoji}>🚘</Text>
-                <View>
-                  <Text style={styles.boldText}>{item.licensePlate}</Text>
-                  {item.entryTime && (
-                    <Text style={styles.historySubText}>
-                      Înregistrat la: {new Date(item.entryTime).toLocaleString('ro-RO')}
-                    </Text>
-                  )}
-                </View>
+          <View key={item.id} style={styles.item}>
+            <View style={styles.itemInfo}>
+              <Image
+                source={require('../../assets/images/favicon.png')}
+                style={styles.logoSmall}
+                resizeMode="contain"
+              />
+              <View>
+                <Text style={styles.boldText}>{item.licensePlate}</Text>
+                {item.entryTime && (
+                  <Text style={styles.historySubText}>
+                    Înregistrat la: {new Date(item.entryTime).toLocaleString('ro-RO')}
+                  </Text>
+                )}
               </View>
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleDeleteVehicle(item.id)}
-              >
-                <Text style={styles.deleteIcon}>🗑️</Text>
-              </TouchableOpacity>
             </View>
-          ))}
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => handleDeleteVehicle(item.id)}
+            >
+              <Text style={styles.deleteIcon}>🗑️</Text>
+            </TouchableOpacity>
+          </View>
+))}
+
         </View>
   
         {/* Istoric acces */}
@@ -288,19 +301,23 @@ const Dashboard = () => {
             />
           )}
   
-          {filteredHistory.map((item) => (
-            <View key={item.id} style={styles.historyItem}>
-              <View style={styles.itemInfo}>
-                <Text style={styles.emoji}>🚘</Text>
-                <View>
-                  <Text style={styles.historyText}>{item.licensePlate}</Text>
-                  <Text style={styles.historySubText}>
-                    Ora acces: {new Date(item.accessTime).toLocaleString('ro-RO')}
-                  </Text>
+                {filteredHistory.map((item) => (
+                <View key={item.id} style={styles.historyItem}>
+                  <View style={styles.itemInfo}>
+                    <Image
+                      source={require('../../assets/images/favicon.png')}
+                      style={styles.logoSmall}
+                      resizeMode="contain"
+                    />
+                    <View>
+                      <Text style={styles.historyText}>{item.licensePlate}</Text>
+                      <Text style={styles.historySubText}>
+                        Ora acces: {new Date(item.accessTime).toLocaleString('ro-RO')}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-              </View>
-            </View>
-          ))}
+              ))}
         </View>
   
         {/* Grafic și control statistici */}
@@ -534,6 +551,37 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     color: 'white',
     fontWeight: 'bold',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  logoWrapper: {
+    flexDirection: 'row', 
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  logoImage: {
+    width: 200,
+    height: 200,
+    marginRight: 12,
+  },
+  
+  logoText: {
+    fontSize: 30,
+    fontWeight: 'bold',
+    color: 'black',
+  },
+  container2: {
+    padding: 16,
+    backgroundColor: '#fff',
+    flex: 1,
+  },
+  logoSmall: {
+    width: 80,
+    height: 80,
+    marginRight: 12,
   },
 });
 

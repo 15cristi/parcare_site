@@ -21,7 +21,7 @@
       "title": "parcare-app",
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/test.png"
     },
     "plugins": [
       "expo-router",
