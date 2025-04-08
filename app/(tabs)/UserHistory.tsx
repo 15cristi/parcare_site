@@ -291,12 +291,7 @@ const UserDashboard = () => {
         <>
         <View style={styles.sectionCard}>
           <Text style={styles.title}>📥 Istoric Acces</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Caută număr înmatriculare..."
-            value={search}
-            onChangeText={setSearch}
-          />
+          
             <Text style={styles.label}>🔍 Filtrare după interval</Text>
 
             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
