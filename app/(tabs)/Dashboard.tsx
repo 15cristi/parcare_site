@@ -19,6 +19,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import moment from 'moment';
 import { BarChart } from 'react-native-chart-kit';
 import { useNavigation } from '@react-navigation/native';
+import { Platform } from 'react-native';
 
 const Dashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -36,10 +37,12 @@ const Dashboard = () => {
   const [selectedYear, setSelectedYear] = useState(moment().format('YYYY'));
   const [countdown, setCountdown] = useState(5);
   const [activeTab, setActiveTab] = useState<'vehicles' | 'history' | 'stats'>('vehicles');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const [fromDate, setFromDate] = useState<Date | null>(null);
+  const [toDate, setToDate] = useState<Date | null>(null);
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
   const navigation = useNavigation();
-
+  const [showDropdown, setShowDropdown] = useState(false);
   const checkAuth = async () => {
     const token = await AsyncStorage.getItem('auth');
     setIsAuthenticated(!!token);
@@ -164,14 +167,13 @@ const Dashboard = () => {
     v.licensePlate.toLowerCase().includes(vehicleSearch.toLowerCase())
   );
 
-  const filteredHistory = history.filter((h) =>
-    h.licensePlate.toLowerCase().includes(historySearch.toLowerCase()) &&
-    (
-      (fromDate === '' || moment(h.accessTime).isSameOrAfter(moment(fromDate, 'YYYY-MM-DD'), 'day')) &&
-      (toDate === '' || moment(h.accessTime).isSameOrBefore(moment(toDate, 'YYYY-MM-DD'), 'day'))
-    
-    )
-  );
+  const filteredHistory = history.filter((h) => {
+    const logDate = moment(h.accessTime);
+    const matchPlate = h.licensePlate.toLowerCase().includes(historySearch.toLowerCase());
+    const matchFrom = fromDate ? logDate.isSameOrAfter(moment(fromDate), 'day') : true;
+    const matchTo = toDate ? logDate.isSameOrBefore(moment(toDate), 'day') : true;
+    return matchPlate && matchFrom && matchTo;
+  });
 
   const totalEntries = chartData.values.reduce((acc, val) => acc + val, 0);
 
@@ -193,6 +195,40 @@ const Dashboard = () => {
       </View>
     );
   }
+
+
+  const renderDateInput = (
+    label: string,
+    date: Date | null,
+    setDate: React.Dispatch<React.SetStateAction<Date | null>>,
+    showPicker: () => void,
+    isWeb: boolean,
+    id: string
+  ) => {
+    if (Platform.OS === 'web') {
+      return (
+        <View style={{ marginBottom: 8,flex: 1 }}>
+          <Text>{label}</Text>
+          <input
+            type="date"
+            id={id}
+            value={date ? moment(date).format('YYYY-MM-DD') : ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val) setDate(new Date(val));
+              else setDate(null);
+            }}
+            style={{ padding: 8, borderRadius: 8, borderColor: '#ccc', borderWidth: 1 }}
+          />
+        </View>
+      );
+    }
+    return (
+      <TouchableOpacity onPress={showPicker} style={{ padding: 12, backgroundColor: '#eee', borderRadius: 8, marginBottom: 12 }}>
+        <Text>{date ? moment(date).format('YYYY-MM-DD') : `📅 ${label} (selectează data)`}</Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <>
@@ -222,14 +258,10 @@ const Dashboard = () => {
       </Modal>
 
       <ScrollView style={styles.container2}>
-        <View style={styles.logoWrapper}>
-          <Image
-            source={require('../../assets/images/favicon.png')}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-          <Text style={styles.logoText}>AI-ParkControl</Text>
-        </View>
+        
+
+      
+        
 
         {/* 🔻 Icon Menu Tabs */}
         <View style={styles.iconBar}>
@@ -242,6 +274,17 @@ const Dashboard = () => {
           <TouchableOpacity onPress={() => setActiveTab('stats')} style={activeTab === 'stats' && styles.activeTab}>
             <Text style={styles.icon}>📈</Text>
           </TouchableOpacity>
+                  <TouchableOpacity onPress={handleLogout}>
+                  <Text style={styles.tabItem}>🚪Logout</Text>
+                   </TouchableOpacity>
+        </View>
+        <View style={styles.logoWrapper}>
+          <Image
+            source={require('../../assets/images/favicon.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.logoText}>AI-ParkControl</Text>
         </View>
 
         {/* 🔻 Tabs */}
@@ -257,9 +300,6 @@ const Dashboard = () => {
                 <Text style={styles.refreshButtonText}>🔄 Refresh</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-              <Text style={styles.logoutButtonText}>🚪 Logout</Text>
-            </TouchableOpacity>
           </View>
         
           <TextInput
@@ -299,56 +339,59 @@ const Dashboard = () => {
         )}
 
         {activeTab === 'history' && (
-         <View style={styles.section}>
-         <Text style={styles.sectionTitle}>📥 Istoric acces - mașini care au intrat în parcare</Text>
-       
-         <TextInput
-           style={styles.searchBar}
-           placeholder="Caută în istoric..."
-           value={historySearch}
-           onChangeText={setHistorySearch}
-         />
-       
+          
+          <ScrollView style={{ padding: 16 }}>
+      <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>📥 Istoric Acces - Admin</Text>
 
-<Text style={styles.sectionTitle}>📅 Filtrare după interval</Text>
+      <TextInput
+        placeholder="Caută număr înmatriculare..."
+        value={historySearch}
+        onChangeText={setHistorySearch}
+        style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 12 }}
+      />
 
-<TextInput
-  style={styles.searchBar}
-  placeholder="De la (AN-LUNA-ZI)"
-  value={fromDate}
-  onChangeText={setFromDate}
-/>
+      <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+        {renderDateInput('De la', fromDate, setFromDate, () => setShowFromPicker(true), Platform.OS === 'web', 'from-date')}
+        {renderDateInput('Până la', toDate, setToDate, () => setShowToPicker(true), Platform.OS === 'web', 'to-date')}
+      </View>
 
-<TextInput
-  style={styles.searchBar}
-  placeholder="Pana la (AN-LUNA-ZI)"
-  value={toDate}
-  onChangeText={setToDate}
-/>
+      {(fromDate || toDate) && (
+        <TouchableOpacity onPress={() => { setFromDate(null); setToDate(null); }} style={{ backgroundColor: '#ef4444', padding: 10, borderRadius: 8, marginBottom: 16 }}>
+          <Text style={{ color: 'white', textAlign: 'center' }}>🔄 Resetare interval</Text>
+        </TouchableOpacity>
+      )}
 
-{(fromDate !== '' || toDate !== '') && (
-  <TouchableOpacity onPress={() => { setFromDate(''); setToDate(''); }} style={styles.refreshButton}>
-    <Text style={styles.refreshButtonText}>🔄 Reset interval</Text>
-  </TouchableOpacity>
-)}
-         {filteredHistory.map((item) => (
-           <View key={item.id} style={styles.historyItem}>
-             <View style={styles.itemInfo}>
-               <Image
-                 source={require('../../assets/images/favicon.png')}
-                 style={styles.logoSmall}
-                 resizeMode="contain"
-               />
-               <View>
-                 <Text style={styles.historyText}>{item.licensePlate}</Text>
-                 <Text style={styles.historySubText}>
-                   Ora acces: {new Date(item.accessTime).toLocaleString('ro-RO')}
-                 </Text>
-               </View>
-             </View>
-           </View>
-         ))}
-       </View>
+      {filteredHistory.map((item) => (
+        <View key={item.id} style={{ backgroundColor: '#f9f9f9', padding: 12, borderRadius: 10, marginBottom: 10 }}>
+          <Text style={{ fontWeight: 'bold', fontSize: 16 }}>{item.licensePlate}</Text>
+          <Text style={{ fontSize: 14, color: '#666', marginTop: 4 }}>Ora acces: {moment(item.accessTime).format('YYYY-MM-DD HH:mm')}</Text>
+        </View>
+      ))}
+
+      {showFromPicker && (
+        <DateTimePicker
+          value={fromDate || new Date()}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowFromPicker(false);
+            if (selectedDate) setFromDate(selectedDate);
+          }}
+        />
+      )}
+
+      {showToPicker && (
+        <DateTimePicker
+          value={toDate || new Date()}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowToPicker(false);
+            if (selectedDate) setToDate(selectedDate);
+          }}
+        />
+      )}
+    </ScrollView>
        
        
         )}
@@ -616,8 +659,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   logoImage: {
-    width: 200,
-    height: 200,
+    width: 90,
+    height: 90,
     marginRight: 12,
   },
   
@@ -635,6 +678,9 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     marginRight: 12,
+  },
+  tabItem: {
+    fontSize: 24,
   },
 });
 
