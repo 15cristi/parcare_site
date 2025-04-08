@@ -17,6 +17,8 @@ import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
+import { fetchUserProfile, updateUserProfile } from '@/api/vehicleAPI';
+import { clearUserProfileData } from '@/api/vehicleAPI';
 const UserDashboard = () => {
   const [activeTab, setActiveTab] = useState<'history' | 'profile' | 'payments'>('history');
   const [logs, setLogs] = useState<AccessLog[]>([]);
@@ -44,57 +46,67 @@ const UserDashboard = () => {
   };
 
   const loadProfile = async () => {
-    const savedName = await AsyncStorage.getItem('user_name');
-    const savedPlate = await AsyncStorage.getItem('user_plate');
-    const savedImage = await AsyncStorage.getItem('user_image');
-
-    if (savedName) setName(savedName);
-    if (savedPlate) setPlate(savedPlate);
-    if (savedImage) setProfileImage(savedImage);
+    const data = await fetchUserProfile();
+    if (data) {
+      setName(data.fullName);
+      setPlate(data.licensePlate);
+      setProfileImage(data.profileImageUrl);
+    }
   };
   const [fromDate, setFromDate] = useState<Date | null>(null);
   const [toDate, setToDate] = useState<Date | null>(null);
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
+
   const saveProfile = async () => {
-    try {
-      await AsyncStorage.setItem('user_name', name);
-      await AsyncStorage.setItem('user_plate', plate);
-      if (profileImage) {
-        await AsyncStorage.setItem('user_image', profileImage);
-      }
-      Alert.alert('✅ Succes', 'Profil salvat cu succes!');
-    } catch (e) {
-      Alert.alert('❌ Eroare', 'A apărut o eroare la salvare.');
+    const success = await updateUserProfile({
+      fullName: name,
+      licensePlate: plate,
+      profileImageUrl: profileImage ?? '',
+    });
+  
+    if (success) {
+      Alert.alert('✅ Succes', 'Profil actualizat cu succes!');
+    } else {
+      Alert.alert('❌ Eroare', 'Nu s-a putut actualiza profilul.');
     }
   };
   
-  const clearUserData = async () => {
-    console.log("Am apasat resetare.");
+
+
   
-    const confirm = window.confirm('Ești sigur că vrei să ștergi toate datele personale?');
-  
-    if (!confirm) return;
-  
-    try {
+const clearUserData = async () => {
+  const confirm = window.confirm('Ești sigur că vrei să ștergi toate datele personale?');
+
+  if (!confirm) return;
+
+  try {
+    // 🔥 Apelăm API-ul backend
+    const success = await clearUserProfileData();
+
+    if (success) {
+      // 🔄 Resetare locală
       await AsyncStorage.multiRemove([
         'user_name',
         'user_plate',
         'user_image',
         'payment_history',
       ]);
-  
+
       setName('');
       setPlate('');
       setProfileImage(null);
       setPaymentHistory([]);
-  
-      alert('✅ Datele au fost șterse cu succes!');
-    } catch (err) {
-      console.error('Eroare la ștergere:', err);
-      alert('❌ Nu s-au putut șterge datele.');
+
+      Alert.alert('✅ Gata', 'Datele tale au fost șterse din profil.');
+    } else {
+      Alert.alert('❌ Eroare', 'Nu s-a putut reseta profilul.');
     }
-  };
+  } catch (err) {
+    console.error('Eroare la resetare:', err);
+    Alert.alert('❌ Eroare', 'A apărut o problemă.');
+  }
+};
   
   const renderDateInput = (
     label: string,
@@ -125,6 +137,10 @@ const UserDashboard = () => {
         </View>
       );
     }
+
+
+
+    
   
     return (
       <TouchableOpacity onPress={showPicker} style={styles.input}>
@@ -137,15 +153,27 @@ const UserDashboard = () => {
   
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,// 🆕 fără `.Options`
       allowsEditing: true,
       quality: 0.7,
     });
-
+  
     if (!result.canceled && result.assets.length > 0) {
-      setProfileImage(result.assets[0].uri);
+      const localUri = result.assets[0].uri;
+  
+      const uploadedUrl = await uploadImageToImgBB(localUri);
+      if (uploadedUrl) {
+        setProfileImage(uploadedUrl);
+      } else {
+        Alert.alert('❌ Eroare', 'Nu s-a putut încărca imaginea.');
+      }
     }
   };
+  
+  
+
+
+
   const loadPaymentHistory = async () => {
     const stored = await AsyncStorage.getItem('payment_history');
     if (stored) {
@@ -202,9 +230,14 @@ const UserDashboard = () => {
   }, [isAuthenticated]);
 
   const filtered = logs.filter((log) => {
+    const logPlate = log.licensePlate?.toLowerCase() || '';
+    const userPlate = plate?.toLowerCase() || '';
+  
     const logDate = moment(log.accessTime);
-    const matchPlate = log.licensePlate.toLowerCase().includes(search.toLowerCase()) &&
-                       log.licensePlate.toLowerCase() === plate.toLowerCase();
+  
+    const matchPlate =
+      logPlate.includes(search.toLowerCase()) && logPlate === userPlate;
+  
     const matchFrom = fromDate ? logDate.isSameOrAfter(moment(fromDate), 'day') : true;
     const matchTo = toDate ? logDate.isSameOrBefore(moment(toDate), 'day') : true;
   
@@ -232,6 +265,8 @@ const UserDashboard = () => {
       </View>
     );
   }
+  
+
 
   const handleSubmitSurvey = async () => {
     if (!paymentType || !paymentAmount || isHappy === null) {
@@ -266,7 +301,36 @@ const UserDashboard = () => {
     }
   };
   
+  const uploadImageToImgBB = async (uri: string) => {
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+  
+      const formData = new FormData();
+      formData.append('image', blob);
+  
+      const res = await fetch('https://api.imgbb.com/1/upload?key=171eed4f2d5bf93bea54d735decd9b9c', {
+        method: 'POST',
+        body: formData,
+      });
+  
+      const data = await res.json();
+  
+      if (data.success) {
+        return data.data.url; // Linkul imaginii
+      } else {
+        console.error('Upload failed:', data);
+        return null;
+      }
+    } catch (err) {
+      console.error('Eroare la upload:', err);
+      return null;
+    }
+  };
+  
 
+
+  
   return (
     <ScrollView style={styles.container}>
       {/* 🔻 Tab Navigation */}
@@ -288,51 +352,75 @@ const UserDashboard = () => {
 
       {/* 🔻 Tabs */}
       {activeTab === 'history' && (
-        <>
-        <View style={styles.sectionCard}>
-          <Text style={styles.title}>📥 Istoric Acces</Text>
-          
-            <Text style={styles.label}>🔍 Filtrare după interval</Text>
+  <>
+    {!plate ? (
+      <View style={styles.sectionCard}>
+        <Text style={styles.title}>
+          ℹ️ Trebuie să îți completezi numărul mașinii în secțiunea „Profil” pentru a vedea istoricul.
+        </Text>
+        <TouchableOpacity
+          style={styles.saveButton}
+          onPress={() => setActiveTab('profile')}
+        >
+          <Text style={styles.saveText}>🔧 Mergi la Profil</Text>
+        </TouchableOpacity>
+      </View>
+    ) : (
+      <View style={styles.sectionCard}>
+        <Text style={styles.title}>📥 Istoric Acces</Text>
 
-            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
-            <View style={{ flex: 1 }}>
-              {renderDateInput(
-                'De la',
-                fromDate,
-                setFromDate,
-                () => setShowFromPicker(true),
-                Platform.OS === 'web',
-                'from-date'
-              )}
-            </View>
-            <View style={{ flex: 1 }}>
-              {renderDateInput(
-                'Până la',
-                toDate,
-                setToDate,
-                () => setShowToPicker(true),
-                Platform.OS === 'web',
-                'to-date'
-              )}
-            </View>
-          </View>
+        <Text style={styles.label}>🔍 Filtrare după interval</Text>
 
-            {(fromDate || toDate) && (
-              <TouchableOpacity onPress={() => { setFromDate(null); setToDate(null); }} style={styles.deleteButton}>
-                <Text style={styles.deleteText}>🔄 Resetare interval</Text>
-              </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+          <View style={{ flex: 1 }}>
+            {renderDateInput(
+              'De la',
+              fromDate,
+              setFromDate,
+              () => setShowFromPicker(true),
+              Platform.OS === 'web',
+              'from-date'
             )}
-          {filtered.map((item) => (
-            <View key={item.id} style={styles.item}>
-              <Text style={styles.plate}>🚗 {item.licensePlate}</Text>
-              <Text style={styles.time}>
-                {moment(item.accessTime).format('YYYY-MM-DD HH:mm')}
-              </Text>
-            </View>
-          ))}
           </View>
-        </>
-      )}
+          <View style={{ flex: 1 }}>
+            {renderDateInput(
+              'Până la',
+              toDate,
+              setToDate,
+              () => setShowToPicker(true),
+              Platform.OS === 'web',
+              'to-date'
+            )}
+          </View>
+        </View>
+
+        {(fromDate || toDate) && (
+          <TouchableOpacity
+            onPress={() => {
+              setFromDate(null);
+              setToDate(null);
+            }}
+            style={styles.deleteButton}
+          >
+            <Text style={styles.deleteText}>🔄 Resetare interval</Text>
+          </TouchableOpacity>
+        )}
+
+        {filtered.map((item) => (
+          <View key={item.id} style={styles.item}>
+            <Text style={styles.plate}>🚗 {item.licensePlate}</Text>
+            <Text style={styles.time}>
+              {moment(item.accessTime).format('YYYY-MM-DD HH:mm')}
+            </Text>
+          </View>
+        ))}
+      </View>
+    )}
+  </>
+)}
+
+
+
 
       {activeTab === 'profile' && (
         <>
@@ -351,14 +439,14 @@ const UserDashboard = () => {
           <TextInput
             style={styles.input}
             placeholder="Nume complet"
-            value={name}
+            value={name || ''}
             onChangeText={setName}
           />
 
           <TextInput
             style={styles.input}
             placeholder="Număr mașină"
-            value={plate}
+            value={plate || '' }
             onChangeText={setPlate}
           />
 

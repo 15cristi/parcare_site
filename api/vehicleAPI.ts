@@ -15,6 +15,12 @@ export type Vehicle = {
   entryTime: string;
 };
 
+export type UserProfile = {
+  fullName: string;
+  licensePlate: string;
+  profileImageUrl: string;
+};
+
 export const loginUser = async (username: string, password: string): Promise<{ token: string; role: string } | null> => {
   try {
     const res = await fetch('http://192.168.1.131:8080/api/auth/login', {
@@ -118,4 +124,57 @@ export const checkAdmin = async (encoded: string): Promise<boolean> => {
   }
 };
 
+export const fetchUserProfile = async (): Promise<UserProfile | null> => {
+  try {
+    const headers = await getAuthHeader();
+    const res = await fetch('http://192.168.1.131:8080/api/user/profile', {
+      method: 'GET',
+      headers,
+    });
 
+    if (!res.ok) {
+      console.error('❌ Eroare la preluarea profilului');
+      return null;
+    }
+
+    return await res.json();
+  } catch (error) {
+    console.error('[EROARE] fetchUserProfile:', error);
+    return null;
+  }
+};
+
+
+export const updateUserProfile = async (profile: UserProfile): Promise<boolean> => {
+  try {
+    const headers = await getAuthHeader();
+    const res = await fetch('http://192.168.1.131:8080/api/user/profile', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+      body: JSON.stringify(profile),
+    });
+
+    return res.ok;
+  } catch (error) {
+    console.error('[EROARE] updateUserProfile:', error);
+    return false;
+  }
+};
+
+export const clearUserProfileData = async (): Promise<boolean> => {
+  try {
+    const headers = await getAuthHeader();
+    const res = await fetch('http://192.168.1.131:8080/api/user/profile', {
+      method: 'DELETE',
+      headers,
+    });
+
+    return res.ok;
+  } catch (error) {
+    console.error('[EROARE] clearUserProfileData:', error);
+    return false;
+  }
+};
