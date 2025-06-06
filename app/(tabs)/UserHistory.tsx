@@ -19,8 +19,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
 import { fetchUserProfile, updateUserProfile } from '@/api/vehicleAPI';
 import { clearUserProfileData } from '@/api/vehicleAPI';
+import { fetchParkingStatus } from '@/api/vehicleAPI';
 const UserDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'history' | 'profile' | 'payments'>('history');
+  const [activeTab, setActiveTab] = useState<'history' | 'profile' | 'payments' | 'parking'>('history');
   const [logs, setLogs] = useState<AccessLog[]>([]);
   const [search, setSearch] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -45,6 +46,17 @@ const UserDashboard = () => {
     }, 100);
   };
 
+  const [parkingStatus, setParkingStatus] = useState({ slot1: 0, slot2: 0 });
+
+useEffect(() => {
+  const interval = setInterval(async () => {
+    const data = await fetchParkingStatus();
+    if (data) setParkingStatus(data);
+  }, 5000);
+
+  return () => clearInterval(interval);
+}, []);
+  
   const loadProfile = async () => {
     const data = await fetchUserProfile();
     if (data) {
@@ -188,6 +200,27 @@ const clearUserData = async () => {
     };
     checkAuth();
   }, []);
+
+  
+
+  useEffect(() => {
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch('http://192.168.1.131:8080/api/slot-status');
+      const data = await res.json();
+      setParkingStatus(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  fetchStatus();
+  const interval = setInterval(fetchStatus, 5000);
+  return () => clearInterval(interval);
+}, []);
+
+
+
 
   useEffect(() => {
     if (isAuthenticated === false) {
@@ -344,6 +377,9 @@ const clearUserData = async () => {
         <TouchableOpacity onPress={() => setActiveTab('payments')}>
           <Text style={[styles.tabItem, activeTab === 'payments' && styles.activeTab]}>💳</Text>
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => setActiveTab('parking')}>
+        <Text style={[styles.tabItem, activeTab === 'parking' && styles.activeTab]}>🅿️</Text>
+      </TouchableOpacity>
         <TouchableOpacity onPress={handleLogout}>
         <Text style={styles.tabItem}>🚪Logout</Text>
          </TouchableOpacity>
@@ -556,6 +592,21 @@ const clearUserData = async () => {
   )}
     </>
   )}
+  {activeTab === 'parking' && (
+  <View style={styles.sectionCard}>
+    <Text style={styles.title}>🅿️ Status Locuri de Parcare</Text>
+
+    <View style={{ flexDirection: 'row', gap: 20, justifyContent: 'center', marginTop: 20 }}>
+      <View style={[styles.parkingSlot, { backgroundColor: parkingStatus.slot1 ? 'red' : 'green' }]}>
+        <Text style={styles.slotText}>Loc 1</Text>
+      </View>
+      <View style={[styles.parkingSlot, { backgroundColor: parkingStatus.slot2 ? 'red' : 'green' }]}>
+        <Text style={styles.slotText}>Loc 2</Text>
+      </View>
+    </View>
+  </View>
+)}
+
 
 
     </ScrollView>
@@ -681,7 +732,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 14,
   },
-  
+  parkingSlot: {
+  width: 100,
+  height: 100,
+  borderRadius: 12,
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderWidth: 2,
+  borderColor: '#333',
+},
+slotText: {
+  color: '#fff',
+  fontWeight: 'bold',
+},
+
   
   
 });

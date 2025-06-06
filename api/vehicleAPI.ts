@@ -178,3 +178,15 @@ export const clearUserProfileData = async (): Promise<boolean> => {
     return false;
   }
 };
+
+// vehicleAPI.ts
+
+export const fetchParkingStatus = async () => {
+  try {
+    const res = await fetch('http://192.168.1.131:8080/api/parking-status');
+    return await res.json(); // { slot1: 0, slot2: 1 }
+  } catch (err) {
+    console.error('Eroare la fetchParkingStatus:', err);
+    return null;
+  }
+};
